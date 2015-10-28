@@ -1,4 +1,4 @@
-# Getting started in python
+# Getting started in Python
 
 1. If you have not already done so, follow the Google Genomics [sign up instructions](https://cloud.google.com/genomics/install-genomics-tools#authenticate) to generate and download a valid ``client_secrets.json`` file.  
 
@@ -9,10 +9,10 @@
 4. (Optional) Create and use a [Python virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/)
 
     ```
-   pip install virtualenv
-   virtualenv python_sample
+    pip install virtualenv
+    virtualenv python_sample
    
-   source python_sample/bin/activate
+    source python_sample/bin/activate
     ```
 
 5. Install the python client library and run the code:
