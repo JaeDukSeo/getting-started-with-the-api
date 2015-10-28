@@ -8,8 +8,12 @@
 
 4. (Optional) Create and use a [Python virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/)
 
-  a. virtualenv python_sample
-  b. source python_sample/bin/activate
+    ```
+   pip install virtualenv
+   virtualenv python_sample
+   
+   source python_sample/bin/activate
+    ```
 
 5. Install the python client library and run the code:
 
