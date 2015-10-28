@@ -6,20 +6,30 @@
 
 3. [Install pip](http://www.pip-installer.org/en/latest/installing.html)
 
-4. Install the python client library and run the code:
+4. (Optional) Create and use a [Python virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/)
+
+  a. virtualenv python_sample
+  b. source python_sample/bin/activate
+
+5. Install the python client library and run the code:
 
     ```
     pip install --upgrade google-api-python-client
     python main.py
     ```
 
+6. To exit the virtualenv (if used):
+
+    ```
+    deactivate
+    ```
+
 # More information
 
-This example is using
-[Google's python client library](https://cloud.google.com/api-client-library/python/),
-which has [pydoc for the genomics methods](https://cloud.google.com/resources/api-libraries/documentation/genomics/v1beta/python/latest/).
+* [Google Genomics client library](https://cloud.google.com/genomics/v1/libraries)
+* [Pydoc reference for the Genomics API](https://developers.google.com/resources/api-libraries/documentation/genomics/v1/python/latest/)
 
 # Troubleshooting
 
-[File an issue](https://github.com/googlegenomics/getting-started/issues/new)
+[File an issue](https://github.com/googlegenomics/getting-started-with-the-api/issues/new)
 if you run into problems and we'll do our best to help!

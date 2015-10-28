@@ -49,7 +49,7 @@ if credentials is None or credentials.invalid:
 # Create a genomics API service
 http = httplib2.Http()
 http = credentials.authorize(http)
-service = build('genomics', 'v1beta2', http=http)
+service = build('genomics', 'v1', http=http)
 
 
 #
@@ -63,8 +63,8 @@ reference_position = 51003835
 
 # 1. First find the read group set ID for the sample
 request = service.readgroupsets().search(
-  body={'datasetIds': [dataset_id], 'name': sample},
-  fields='readGroupSets(id)')
+    body={'datasetIds': [dataset_id], 'name': sample},
+    fields='readGroupSets(id)')
 read_group_sets = request.execute().get('readGroupSets', [])
 if len(read_group_sets) != 1:
   raise Exception('Searching for %s didn\'t return '
@@ -75,12 +75,11 @@ read_group_set_id = read_group_sets[0]['id']
 # 2. Once we have the read group set ID,
 # lookup the reads at the position we are interested in
 request = service.reads().search(
-  body={'readGroupSetIds': [read_group_set_id],
-        'referenceName': reference_name,
-        'start': reference_position,
-        'end': reference_position + 1,
-        'pageSize': 1024},
-  fields='alignments(alignment,alignedSequence)')
+    body={'readGroupSetIds': [read_group_set_id],
+          'referenceName': reference_name,
+          'start': reference_position,
+          'end': reference_position + 1},
+    fields='alignments(alignment,alignedSequence)')
 reads = request.execute().get('alignments', [])
 
 # Note: This is simplistic - the cigar should be considered for real code
@@ -92,15 +91,14 @@ print '%s bases on %s at %d are' % (sample, reference_name, reference_position)
 for base, count in Counter(bases).items():
   print '%s: %s' % (base, count)
 
-
 #
 # This example gets the variants for a sample at a specific position
 #
 
 # 1. First find the call set ID for the sample
 request = service.callsets().search(
-  body={'variantSetIds': [dataset_id], 'name': sample},
-  fields='callSets(id)')
+    body={'variantSetIds': [dataset_id], 'name': sample},
+    fields='callSets(id)')
 resp = request.execute()
 call_sets = resp.get('callSets', [])
 if len(call_sets) != 1:
@@ -113,11 +111,11 @@ call_set_id = call_sets[0]['id']
 # 2. Once we have the call set ID,
 # lookup the variants that overlap the position we are interested in
 request = service.variants().search(
-  body={'callSetIds': [call_set_id],
-        'referenceName': reference_name,
-        'start': reference_position,
-        'end': reference_position + 1},
-  fields='variants(names,referenceBases,alternateBases,calls(genotype))')
+    body={'callSetIds': [call_set_id],
+          'referenceName': reference_name,
+          'start': reference_position,
+          'end': reference_position + 1},
+    fields='variants(names,referenceBases,alternateBases,calls(genotype))')
 variant = request.execute().get('variants', [])[0]
 
 variant_name = variant['names'][0]
