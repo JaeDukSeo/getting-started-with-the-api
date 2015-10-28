@@ -14,24 +14,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Python sample demonstrating use of the Google Genomics API.
+
+Demonstrates:
+  * Authorization flow
+  * Using discovery to create the genomics/v1 service
+  * Making calls to the genomics v1 service for reads and variants
+"""
+
 import argparse
-import httplib2
-from apiclient.discovery import build
 from collections import Counter
+from apiclient.discovery import build
+import httplib2
 from oauth2client import tools
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.file import Storage
 from oauth2client.tools import run_flow
 
 # For these examples, the client id and client secret are command-line arguments
-parser = argparse.ArgumentParser(description=__doc__,
+parser = argparse.ArgumentParser(
+    description=__doc__,
     formatter_class=argparse.RawDescriptionHelpFormatter,
     parents=[tools.argparser])
 parser.add_argument('--client_secrets_filename',
                     default='client_secrets.json',
-                    help='The filename of a client_secrets.json file from a '
-                         'Google "Client ID for native application" that '
-                         'has the Genomics API enabled.')
+                    help=('The filename of a client_secrets.json file from a '
+                          'Google "Client ID for native application" that '
+                          'has the Genomics API enabled.'))
 flags = parser.parse_args()
 
 # Authorization
@@ -39,11 +48,11 @@ storage = Storage('credentials.dat')
 credentials = storage.get()
 if credentials is None or credentials.invalid:
   flow = flow_from_clientsecrets(
-    flags.client_secrets_filename,
-    scope='https://www.googleapis.com/auth/genomics',
-    message='You need to copy a client_secrets.json file into this directory, '
-            'or pass in the --client_secrets_filename option to specify where '
-            'one exists. See the README for more help.')
+      flags.client_secrets_filename,
+      scope='https://www.googleapis.com/auth/genomics',
+      message=('You need to copy a client_secrets.json file into this '
+               'directory, or pass in the --client_secrets_filename option '
+               'to specify where one exists. See the README for more help.'))
   credentials = run_flow(flow, storage, flags)
 
 # Create a genomics API service
@@ -55,7 +64,7 @@ service = build('genomics', 'v1', http=http)
 #
 # This example gets the read bases for a sample at specific a position
 #
-dataset_id = '10473108253681171589' # This is the 1000 Genomes dataset ID
+dataset_id = '10473108253681171589'  # This is the 1000 Genomes dataset ID
 sample = 'NA12872'
 reference_name = '22'
 reference_position = 51003835
@@ -83,9 +92,10 @@ request = service.reads().search(
 reads = request.execute().get('alignments', [])
 
 # Note: This is simplistic - the cigar should be considered for real code
-bases = [read['alignedSequence'][
-           reference_position - int(read['alignment']['position']['position'])]
-         for read in reads]
+bases = [
+    read['alignedSequence'][
+        reference_position - int(read['alignment']['position']['position'])]
+    for read in reads]
 
 print '%s bases on %s at %d are' % (sample, reference_name, reference_position)
 for base, count in Counter(bases).items():
