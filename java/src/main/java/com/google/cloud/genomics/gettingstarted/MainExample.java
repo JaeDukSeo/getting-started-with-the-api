@@ -116,17 +116,17 @@ public class MainExample {
       SearchReadsRequest readsReq = new SearchReadsRequest()
           .setReadGroupSetIds(Lists.newArrayList(readGroupSetId))
           .setReferenceName(referenceName)
-          .setStart(BigInteger.valueOf(referencePosition))
-          .setEnd(BigInteger.valueOf(referencePosition + 1))
-          .setPageSize(1024);
+          .setStart(referencePosition)
+          .setEnd(referencePosition + 1);
 
       List<Read> reads = genomics.reads().search(readsReq)
           .setFields("alignments(alignment,alignedSequence)").execute().getAlignments();
 
       Map<Character, Integer> baseCounts = Maps.newHashMap();
       for (Read read : reads) {
-        int index = BigInteger.valueOf(referencePosition).subtract(
-            read.getAlignment().getPosition().getPosition()).intValue();
+        int index = (int)(referencePosition -
+            read.getAlignment().getPosition().getPosition());
+
         // Note: This is simplistic - the cigar should be considered for real code
         Character base = read.getAlignedSequence().charAt(index);
 
