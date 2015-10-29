@@ -15,7 +15,6 @@
     ```
 
 4. Get the client library and oauth dependencies.
-(Note: this will [require mercurial](http://golang.org/s/gogetcmd))
 
     ```
     go get golang.org/x/oauth2
