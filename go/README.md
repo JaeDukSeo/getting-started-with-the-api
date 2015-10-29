@@ -1,20 +1,40 @@
 # Getting started in Go
 
-1. If you have not already done so, follow the Google Genomics [sign up instructions](https://cloud.google.com/genomics/install-genomics-tools#authenticate) to generate and download a valid ``client_secrets.json`` file.  Save the "client ID" and "client secret" values from the credential.
+1. If you have not already done so, follow the Google Genomics
+   [sign up instructions](https://cloud.google.com/genomics/install-genomics-tools#authenticate)
+   to generate and download a valid ``client_secrets.json`` file.
 
 2. [Install go](http://golang.org/doc/install)
-(make sure you set up a [$GOPATH](https://code.google.com/p/go-wiki/wiki/GOPATH))
 
-3. Get the client library and oauth dependencies.
+3. Set a [$GOPATH](https://github.com/golang/go/wiki/GOPATH) for
+   installation of dependent packages. For example to set it to the
+   current working directory:
+
+    ```
+    export GOPATH=$(pwd)
+    ```
+
+4. Get the client library and oauth dependencies.
 (Note: this will [require mercurial](http://golang.org/s/gogetcmd))
 
     ```
-    go get google.golang.org/api/genomics/v1beta2
-    go get code.google.com/p/goauth2/oauth
+    go get golang.org/x/oauth2
+    go get golang.org/x/oauth2/google
+    go get google.golang.org/api/genomics/v1
     ```
 
-4. Run the code:
+5. Run the code:
 
     ```
-    go run main.go client_id client_secret
+    go run main.go
     ```
+
+# More information
+
+* [Google Genomics client library](https://cloud.google.com/genomics/v1/libraries)
+* [GoDoc reference for the Genomics API](https://godoc.org/google.golang.org/api/genomics/v1)
+
+# Troubleshooting
+
+[File an issue](https://github.com/googlegenomics/getting-started-with-the-api/issues/new)
+if you run into problems and we'll do our best to help!

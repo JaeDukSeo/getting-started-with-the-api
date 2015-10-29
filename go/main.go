@@ -14,74 +14,126 @@
 package main
 
 import (
-	"bufio"
-	"code.google.com/p/goauth2/oauth"
+	"encoding/json"
 	"flag"
 	"fmt"
-	"google.golang.org/api/genomics/v1beta2"
+	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
+	"google.golang.org/api/genomics/v1"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 )
 
-var config = &oauth.Config{
-	ClientId:     "", // Set by the command line args
-	ClientSecret: "", // Set by the command line args
-	Scope:        genomics.GenomicsScope,
-	RedirectURL:  "oob",
-	AuthURL:      "https://accounts.google.com/o/oauth2/auth",
-	TokenURL:     "https://accounts.google.com/o/oauth2/token",
-	TokenCache:   oauth.CacheFile(".oauth2_cache.json"),
-}
+// The following utility functions exist for the purpose of
+// handling the OAuth2 authentication flow:
+//
+//  1- Check if credentials have been cached locally (in credentials.dat)
+//  2- If no credential
+//     a- Emit a URL for the user to paste into their browser
+//        (to then authorize access to their genomic data)
+//     b- Emit a prompt for the resulting authorization code
+//     c- Save credentials to a local file (credentials.dat)
+//  3- Create an HTTP client with the authorization attached
 
-func usage() {
-	fmt.Fprintln(os.Stderr, "Usage: main.go client_id client_secret")
-	os.Exit(2)
-}
+// getClient uses a Context and Config to retrieve a Token
+// then generate a Client. It returns the generated Client.
+func getClient(ctx context.Context, config *oauth2.Config) *http.Client {
+	cacheFile := tokenCacheFile()
 
-func obtainOauthCode(url string) string {
-	fmt.Println("Please visit the below URL to obtain OAuth2 code.")
-	fmt.Println()
-	fmt.Println(url)
-	fmt.Println()
-	fmt.Println("Please enter the code here:")
-
-	line, _, _ := bufio.NewReader(os.Stdin).ReadLine()
-
-	return string(line)
-}
-
-func getOAuthClient(config *oauth.Config) (*http.Client, error) {
-	transport := &oauth.Transport{Config: config}
-	token, err := config.TokenCache.Token()
+	tok, err := tokenFromFile(cacheFile)
 	if err != nil {
-		url := config.AuthCodeURL("")
-		code := obtainOauthCode(url)
-		token, err = transport.Exchange(code)
-		if err != nil {
-			return nil, err
-		}
+		tok = getTokenFromWeb(config)
+		saveToken(cacheFile, tok)
+	}
+	return config.Client(ctx, tok)
+}
+
+// getTokenFromWeb uses Config to request a Token.
+// It returns the retrieved Token.
+func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
+	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+	fmt.Printf("Go to the following link in your browser to authorize:\n%s\n\n"+
+		"Enter the authorization code: ", authURL)
+
+	var code string
+	if _, err := fmt.Scan(&code); err != nil {
+		log.Fatalf("Unable to read authorization code %v", err)
 	}
 
-	transport.Token = token
-	client := transport.Client()
-
-	return client, nil
+	tok, err := config.Exchange(oauth2.NoContext, code)
+	if err != nil {
+		log.Fatalf("Unable to retrieve token from web %v", err)
+	}
+	return tok
 }
+
+// tokenCacheFile generates credential file path/filename.
+// It returns the generated credential path/filename.
+func tokenCacheFile() string {
+	return "credentials.dat"
+}
+
+// tokenFromFile retrieves a Token from a given file path.
+// It returns the retrieved Token and any read error encountered.
+func tokenFromFile(file string) (*oauth2.Token, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	t := &oauth2.Token{}
+	err = json.NewDecoder(f).Decode(t)
+	defer f.Close()
+	return t, err
+}
+
+// saveToken uses a file path to create a file and store the
+// token in it.
+func saveToken(file string, token *oauth2.Token) {
+	fmt.Printf("Saving credential file to: %s\n", file)
+	f, err := os.Create(file)
+	if err != nil {
+		log.Fatalf("Unable to cache oauth token: %v", err)
+	}
+	defer f.Close()
+	json.NewEncoder(f).Encode(token)
+}
+
+// End OAuth2 utility functions
 
 func main() {
-	flag.Parse()
-	if flag.NArg() != 2 {
-		usage()
-	}
+	// Set up command line parsing
+	//
+	// Usage:
+	//   go run main.go [--client_secrets_filename <client_secrets.json>]
+	// where the default client secrets file is ./client_secrets.json
+	//
+	var clientSecrets string
+	flag.StringVar(&clientSecrets,
+		"client_secrets_filename", "client_secrets.json",
+		"The filename of a client_secrets.json file from a "+
+			"Google `Client ID for native application` that "+
+			"has the Genomics API enabled.")
 
-	// Authorization
-	config.ClientId = flag.Args()[0]
-	config.ClientSecret = flag.Args()[1]
-	client, err := getOAuthClient(config)
+	flag.Parse()
+
+	// Read up the client secrets contents
+	secrets, err := ioutil.ReadFile(clientSecrets)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Create an OAuth2 config object from the client secrets
+	config, err := google.ConfigFromJSON(
+		secrets, "https://www.googleapis.com/auth/genomics")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Run the OAuth2 authorization flow to get an HTTP client for requests
+	client := getClient(context.Background(), config)
 
 	// Create a genomics API service
 	svc, err := genomics.New(client)
@@ -90,6 +142,7 @@ func main() {
 	}
 
 	//
+	// Authorized to query genomics data...
 	// This example gets the read bases for NA12878 at specific a position
 	//
 	datasetId := "10473108253681171589" // This is the 1000 Genomes dataset ID
@@ -118,7 +171,6 @@ func main() {
 		ReferenceName:   referenceName,
 		Start:           referencePosition,
 		End:             referencePosition + 1,
-		PageSize:        1024,
 	}).Fields("alignments(alignment,alignedSequence)").Do()
 	if err != nil {
 		log.Fatal(err)
