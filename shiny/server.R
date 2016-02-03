@@ -18,7 +18,7 @@ library(httpuv)
 
 shinyServer(function(input, output) {
 
-  endpoint = 'https://www.googleapis.com/genomics/v1beta2/'
+  endpoint = 'https://www.googleapis.com/genomics/v1/'
 
   #
   # This example gets the read bases for a sample at specific a position
