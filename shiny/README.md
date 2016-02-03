@@ -3,7 +3,7 @@
 This sample demonstrates using the Google Genomics API from R along with the
 [Shiny web application framework](http://shiny.rstudio.com/).
 
-For more basic getting started with R examples, see the
+For more getting started with R examples, see the
 [Bioconductor GoogleGenomics repository](https://github.com/Bioconductor/GoogleGenomics).
 
 You can view a hosted version of this Shiny app here:
@@ -55,6 +55,6 @@ To run the Shiny app locally, follow the instructions below:
 
 5. If you have not already authenticated and cached your credentials, your
    browser should now prompt you to authorize access to the Genomics API.
-   On successful authorization, the requested genomic data should be
+
+6. When successfully authorized, the requested genomic data should be
    fetched and displayed in the Shiny app.
-   in the 
