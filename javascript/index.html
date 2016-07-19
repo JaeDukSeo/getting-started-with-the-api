@@ -1,145 +1,514 @@
 <!--
-Copyright 2014 Google Inc. All rights reserved.
+  Copyright (c) 2016 Google Inc.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+  Licensed under the Apache License, Version 2.0 (the "License"); you may not
+  use this file except in compliance with the License. You may obtain a copy of
+  the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+  http://www.apache.org/licenses/LICENSE-2.0
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+  License for the specific language governing permissions and limitations under
+  the License.
+
 -->
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" charset="utf-8"></script>
-  <script src="//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min.js" charset="utf-8"></script>
-  <script src="//rawgit.com/googlegenomics/api-client-javascript/master/googlegenomics.jquery.js"></script>
-</head>
-<body>
+<html>
+  <head>
+    <meta charset='utf-8' />
 
-<div id="results" style="margin: 20px 20px 0 20px;"></div>
-<div id="variantResults" style="margin: 0 20px;"></div>
+    <script type="text/javascript">
 
+    /**
+     * Set your Application Key here.
+     */
+    var API_KEY = 'YOUR-API-KEY';
 
-<script type="text/javascript">
-// Setup the genomics plugin
-var clientId = window.location.hash.substring(1);
-if (!clientId) {
-  alert('A client ID is required. Please append one to the url: ' +
-      'http://localhost:8000#my-client-id');
-} else {
-  $('#results').text('Loading');
-  $.initGenomics({clientId: clientId});
-}
+    /**
+     * Set your OAuth client ID for Web application here.
+     */
+    var CLIENT_ID = 'YOUR-CLIENT-ID';
 
-//
-// This example gets the read bases for a sample at specific a position
-//
-var datasetId = '10473108253681171589'; // This is the 1000 Genomes dataset ID
-var sample = 'NA12872';
-var referenceName = '22';
-var referencePosition = 51003835;
+    /**
+     * The genomics API version.
+     * The authorization scopes for the request.
+     */
+    var API_VERSION = 'v1';
+    var SCOPES = 'https://www.googleapis.com/auth/genomics';
 
-// 1. First find the read group set ID for the sample
-$.genomicsAjax('/readgroupsets/search?fields=readGroupSets(id)', {
-  version: 'v1beta2',
-  method: 'POST',
-  data: JSON.stringify({datasetIds: [datasetId], name: sample}),
-  success: function(json) {
-    var readGroupSets = json.readGroupSets || [];
-    if (readGroupSets.length != 1) {
-      throw 'Searching for ' + sample +
-          ' didn\'t return the right number of read group sets';
+    /**
+     * Object to track whether user has signed in or not.
+     */
+    var auth2;
+
+    /**
+     * Values to be used for this example
+     */
+    var DATASET_ID = '10473108253681171589';    // 1000 Genomes dataset ID
+    var VARIANTSET_ID = '10473108253681171589'; // 1000 Genomes variantset ID
+    var SAMPLE = 'NA12872';
+    var REFERENCE_NAME = '22';
+    var REFERENCE_POSITION = 51003835;
+
+    /**
+     * Values to be fetched for this example
+     */
+    var readGroupSetPromise = null
+    var readsPromise = null
+    var callSetsPromise = null
+    var variantsPromise = null
+
+    /**
+     * Clear the "request-response" node in the output.
+     */
+    function clearMainContent() {
+      var display = document.getElementById('request-response');
+      display.innerHTML = ''
     }
 
-    var readGroupSetId = readGroupSets[0].id;
-
-
-    // 2. Once we have the read group set ID,
-    // lookup the reads at the position we are interested in
-    var params = {
-      readGroupSetIds: [readGroupSetId],
-      referenceName: referenceName,
-      start: referencePosition,
-      end: referencePosition + 1,
-      pageSize: 1024
-    };
-    var readFields = 'alignments(alignment,alignedSequence)';
-    $.genomicsAjax('/reads/search?fields=' + readFields, {
-      version: 'v1beta2',
-      method: 'POST',
-      data: JSON.stringify(params),
-      success: function(json) {
-        var reads = json.alignments || [];
-        var bases = _.map(reads, function(read) {
-          // Note: This is simplistic -
-          // the cigar should be considered for real code
-          var position = read.alignment.position.position;
-          return read.alignedSequence[referencePosition - position]
-        });
-        var results = $('#results').text(sample + ' bases on ' + referenceName +
-            ' at ' + referencePosition + ' are');
-        _.each(_.countBy(bases), function(count, base) {
-          $("<div/>").text(base + ": " + count).appendTo(results);
-        });
-      }
-    });
-  }
-});
-
-
-//
-// This example gets the variants for a sample at a specific position
-//
-
-// 1. First find the call set ID for the sample
-$.genomicsAjax('/callsets/search?fields=callSets(id)', {
-  method: 'POST',
-  data: JSON.stringify({variantSetIds: [datasetId], name: sample}),
-  success: function(json) {
-    var callSets = json.callSets || [];
-    if (callSets.length != 1) {
-      throw 'Searching for ' + sample +
-          ' didn\'t return the right number of call sets';
+    /**
+     * Append a message to the current "request" display information.
+     */
+    function appendRequestDisplay(msg) {
+      document.getElementById('request-response').innerHTML += msg
     }
 
-    var callSetId = callSets[0].id;
+    /**
+     * Append a message to the current "request" display information.
+     */
+    function appendResponseDisplay(msg) {
+      document.getElementById('request-response').innerHTML += msg
+    }
 
+    /**
+     * Generic handler for command request failure.
+     */
+    function requestErrorHandler(reason) {
+      appendResponseDisplay('<p>' + reason.result.error.message + '</p>');
+    }
 
-    // 2. Once we have the call set ID,
-    // lookup the variants that overlap the position we are interested in
-    var params = {
-      callSetIds: [callSetId],
-      referenceName: referenceName,
-      start: referencePosition,
-      end: referencePosition + 1
-    };
-    var variantFields = 'variants(names,referenceBases,alternateBases,' +
-        'calls(genotype))';
-    $.genomicsAjax('/variants/search?fields=' + variantFields, {
-      method: 'POST',
-      data: JSON.stringify(params),
-      success: function(json) {
-        var variant = json.variants[0];
-        var variantName = variant.names[0];
+    /**
+     * Resets the API request state for all requests.
+     * Called after sign-in or sign-out.
+     */
+    function clearRequestPromises() {
+      readGroupSetPromise = null
+      readsPromise = null
+      callSetsPromise = null
+      variantsPromise = null
+    }
 
-        var genotype = _.map(variant.calls[0].genotype, function(g) {
-          return g == 0 ? variant.referenceBases
-              : variant.alternateBases[g - 1];
-        });
-
-        $('#variantResults').text('the called genotype is ' + genotype +
-            ' for ' + variantName);
+    /**
+     * Create the request object for the readGroupSet search.
+     *
+     * gapi request objects support a simple "execute(callback)" method,
+     * however they also support the Promises/A+ interface, which is
+     * the recommend usage.
+     */
+    function createReadGroupSetsPromise(datasetId, sample) {
+      if (readGroupSetPromise) {
+        return;
       }
-    });
-  }
-});
 
-</script>
-</body>
+      readGroupSetPromise =
+        gapi.client.genomics.readgroupsets.search({
+          'datasetIds': [ datasetId ],
+          'name': sample,
+          'fields': 'readGroupSets(id)',
+        });
+    }
+
+    /**
+     * Create the request object for the reads search.
+     */
+    function createReadsPromise(
+      readGroupSetId, referenceName, referencePosition) {
+
+      if (readsPromise) {
+        return;
+      }
+
+      readsPromise = 
+        gapi.client.genomics.reads.search({
+          'readGroupSetIds': [readGroupSetId],
+          'referenceName': referenceName,
+          'start': referencePosition,
+          'end': referencePosition + 1,
+          'fields': 'alignments(alignment,alignedSequence)',
+        });
+    }
+
+    /**
+     * Create the request object for the callSets search.
+     */
+    function createCallSetsPromise(variantSetId, sample) {
+      if (callSetsPromise) {
+        return;
+      }
+
+      callSetsPromise = gapi.client.genomics.callsets.search({
+        'variantSetIds': [ variantSetId ],
+        'name': sample,
+        'fields': 'callSets(id)',
+      });
+    }
+
+    /**
+     * Create the request object for the variants search.
+     */
+    function createVariantsPromise(
+      callSetId, referenceName, referencePosition) {
+
+      if (variantsPromise) {
+        return;
+      }
+
+      variantsPromise = gapi.client.genomics.variants.search({
+        'callSetIds': [callSetId],
+        'referenceName': referenceName,
+        'start': referencePosition,
+        'end': referencePosition + 1,
+        'fields': 'variants(names,referenceBases,alternateBases,' +
+                  'calls(genotype))'
+      });
+    }
+
+    /**
+     * Process the readGroupSets search response object and return
+     * the readGroupSet ID. For the test dataset used in this file, a
+     * single readGroupSet will be returned.
+     */
+    function getReadGroupSetIdFromResponse(response) {
+      var readGroupSets = response.result.readGroupSets;
+      if (!readGroupSets || readGroupSets.length != 1) {
+        appendResponseDisplay('Unexpected number of readGroupSets returned');
+        return;
+      }
+
+      return readGroupSets[0].id
+    }
+
+    /**
+     * Display the result of a readGroupSet search.
+     */
+    function searchForReadGroupSets_Display(response) {
+      readGroupSetId = getReadGroupSetIdFromResponse(response);
+      appendResponseDisplay('<p>Response: ReadGroupSet ID: ' + readGroupSetId + '</p>');
+    }
+
+    /**
+     * Search the test dataset for a readGroupSet.
+     */
+    function searchForReadGroupSets() {
+      appendRequestDisplay(
+        '<p>Request: readgroupsets.search() for dataset ' +
+        DATASET_ID + '</p>');
+
+      createReadGroupSetsPromise(DATASET_ID, SAMPLE);
+
+      readGroupSetPromise.then(
+        searchForReadGroupSets_Display,
+        requestErrorHandler);
+    }
+
+    /**
+     * Display the results of a reads search.
+     */
+    function searchForReads_Display(response) {
+      var alignments = response.result.alignments;
+      if (!alignments) {
+        appendResponseDisplay('<p>No alignments returned!</p>');
+        return
+      }
+        
+      appendResponseDisplay(
+        '<p>Response: ' + alignments.length + ' alignments found</p>');
+
+      // Create a map with the count of each base found at the target position
+      // Note: This is simplistic - the quality score should be considered
+      bases = {}
+      for (i = 0; i < alignments.length; i++) {
+        var alignment = alignments[i]
+        var position = alignment.alignment.position.position;
+
+        var base = alignment.alignedSequence[REFERENCE_POSITION - position]
+        if (bases[base]) {
+          bases[base] += 1
+        } else {
+          bases[base] = 1
+        }
+      }
+
+      appendResponseDisplay('<ul>');
+      for (var base in bases) {
+        appendResponseDisplay('<li>' + base + ': ' + bases[base] + '</li>');
+      }
+      appendResponseDisplay('</ul>');
+    }
+
+    /**
+     * Search the test readGroupSet for reads aligned to a specific location
+     * in the genome.
+     */
+    function searchForReads() {
+      searchForReadGroupSets()
+
+      readGroupSetPromise.then(function(response) {
+          readGroupSetId = getReadGroupSetIdFromResponse(response);
+
+          appendRequestDisplay(
+            '<p>Request: reads.search() for readgroupset' +
+            readGroupSetId + '</p>');
+
+          createReadsPromise(
+            readGroupSetId, REFERENCE_NAME, REFERENCE_POSITION);
+
+          readsPromise.then(searchForReads_Display, requestErrorHandler);
+        }, requestErrorHandler);
+    }
+
+    /**
+     * Process the callSets search response object and return
+     * the callSet ID.
+     */
+    function getCallSetIdFromResponse(response) {
+      var callSets = response.result.callSets;
+      if (!callSets || callSets.length != 1) {
+        appendResponseDisplay('Unexpected number of callSets returned');
+        return;
+      }
+
+      return callSets[0].id;
+    }
+
+    /**
+     * Display the results of a callSets search.
+     */
+    function searchForCallSets_Display(response) {
+      callSetId = getCallSetIdFromResponse(response);
+      appendResponseDisplay('<p>Response: CallSet ID: ' + callSetId + '</p>');
+    }
+
+    /**
+     * Search the test variantSet for a callSet.
+     */
+    function searchForCallSets() {
+      appendRequestDisplay(
+        '<p>Request: callsets.search() for variantset ' +
+        VARIANTSET_ID + '</p>');
+
+      createCallSetsPromise(VARIANTSET_ID, SAMPLE);
+
+      callSetsPromise.then(searchForCallSets_Display, requestErrorHandler);
+    }
+
+    function searchForVariants_Display(response) {
+      var variants = response.result.variants;
+      if (!variants) {
+        appendResponseDisplay('<p>No variants returned!</p>');
+        return
+      }
+      variant = variants[0]
+      variantName = variant.names[0]
+
+      var genotype = []
+      for (i = 0; i < variant.calls[0].genotype.length; i++) {
+        g = variant.calls[0].genotype[i]
+        genotype.push(g == 0 ? variant.referenceBases
+                             : variant.alternateBases[g - 1]);
+      };
+
+      appendResponseDisplay(
+        '<p>Response: called genotype ' + genotype + ' for ' + variantName);
+    }
+
+    /**
+     * Search the test callSet for variants at a specific location
+     * in the genome.
+     */
+    function searchForVariants() {
+      searchForCallSets();
+
+      callSetsPromise.then(function(response) {
+          callSetId = getCallSetIdFromResponse(response);
+
+          appendRequestDisplay(
+            '<p>Request: variants.search() for callset ' +
+            callSetId + '</p>');
+
+          createVariantsPromise(callSetId, REFERENCE_NAME, REFERENCE_POSITION);
+
+          variantsPromise.then(searchForVariants_Display, requestErrorHandler);
+        }, requestErrorHandler);
+    }
+
+    /**
+     * Determines which API request has been selected, and makes a call to add
+     * its result entry.
+     */
+    function runSelectedApiRequest() {
+      var curElement = document.getElementById('api-selection-options');
+      var apiRequestName = curElement.options[curElement.selectedIndex].value;
+
+      clearMainContent();
+
+      // Execute the request function
+      window[apiRequestName].apply(this);
+    }
+
+    /**
+     * Binds event listeners to handle a newly selected API request.
+     */
+    function addSelectionSwitchingListeners() {
+      document.getElementById('api-selection-options')
+        .addEventListener('change', runSelectedApiRequest, false);
+    }
+
+
+    /**
+     * Start the client initialization process.
+     * Initialize elements of the display.
+     */
+    function handleClientLoad() {
+      gapi.load('client:auth2', initAuth);
+
+      document.getElementById("dataset-id").innerHTML = DATASET_ID
+      document.getElementById("sample-id").innerHTML = SAMPLE
+      document.getElementById("reference-name").innerHTML = REFERENCE_NAME
+      document.getElementById("reference-position").innerHTML = REFERENCE_POSITION
+
+      addSelectionSwitchingListeners();
+    }
+
+    /**
+     * Authorize Google Genomics API.
+     */
+    function initAuth() {
+      gapi.auth2.init({
+        client_id: CLIENT_ID,
+        scope: SCOPES
+      }).then(function () {
+        var authorizeButton = document.getElementById('authorize-button');
+
+        auth2 = gapi.auth2.getAuthInstance();
+
+        // Listen for sign-in state changes.
+        auth2.isSignedIn.listen(updateSigninStatus);
+
+        // Handle the initial sign-in state.
+        updateSigninStatus(auth2.isSignedIn.get());
+      });
+    }
+
+    /**
+     * Respond to sign in status changes and update the interface.
+     */
+    function updateSigninStatus(isSignedIn) {
+      var authStatus = document.getElementById('auth-status');
+      var authorizeButton = document.getElementById('authorize-button');
+
+      if (isSignedIn) {
+        authStatus.innerHTML = 'Requests will be authenticated:';
+        authorizeButton.innerHTML = 'Sign out';
+        authorizeButton.onclick = handleSignoutClick;
+      } else {
+        authStatus.innerHTML = 'Requests will be anonymous:';
+        authorizeButton.innerHTML = 'Authorize';
+        authorizeButton.onclick = handleAuthClick;
+      }
+
+      initializeApi();
+      clearRequestPromises();
+      clearMainContent();
+
+      var element = document.getElementById('api-selection-options');
+      element.value = "";
+    }
+
+    /**
+     * Handle the user clicking the Authorize button by initiating the
+     * sign in process.
+     */
+    function handleAuthClick(event) {
+      auth2.signIn();
+    }
+
+    /**
+     * Handle the user clicking the Sign Out button by initiating the
+     * sign out process.
+     */
+    function handleSignoutClick(event) {
+      auth2.signOut();
+    }
+
+    /**
+     * Load the Google Genomics API.
+     */
+    function initializeApi() {
+      gapi.client.load('genomics', 'v1');
+      gapi.client.setApiKey(API_KEY);
+    }
+    </script>
+  </head>
+
+  <body>
+    <h1>Google Genomics JavaScript Client Library Application</h1>
+
+    <h2>Overview</h2>
+    <p>Sample data used in this application is:</p>
+    <ul>
+      <li>Stored and accessible via the <a href="https://cloud.google.com/genomics/reference/">Google Genomics API</a></li>
+      <li>Source from the <a href="https://cloud.google.com/genomics/data/1000-genomes">1000 Genomics Project</a></li>
+      <li>Publicly accessible</li>
+    </ul>
+
+    <h2>Authentication</h2>
+
+    <p>This sample demonstrates fetching data using both anonymous
+       as well as authenticated access.</p>
+
+    <p><span id="auth-status">Requests will be anonymous: </span>
+       <button id="authorize-button">Authorize</button></p>
+
+    <h2>Call the API</h2>
+
+    <div id="main-content">
+      <label id="api-label">Try an API call:</label>
+      <select id="api-selection-options">
+        <option value="">
+          Select an API call from the menu
+        </option>
+        <option value="searchForReadGroupSets">
+          1a- Search for ReadGroupSets
+        </option>
+        <option value="searchForReads">
+          1b- Search for Reads
+        </option>
+        <option value="searchForCallSets">
+          2a- Search for CallSets
+        </option>
+        <option value="searchForVariants">
+          2b- Search for Variants
+        </option>
+      </select>
+ 
+      <p>
+      <div id="genomic-data" style="margin-left: 10px;">
+        <div>Dataset: <span id="dataset-id"></span></div>
+        <div>Sample: <span id="sample-id"></span></div>
+        <div>Reference: <span id="reference-name"></span></div>
+        <div>Position: <span id="reference-position"></span></div>
+      </div>
+      </p>
+      <p>
+      <div id="request-response">
+      </div>
+      </p>
+    </div>
+
+    <script src="https://apis.google.com/js/api.js?onload=handleClientLoad"></script>
+
+  </body>
 </html>
