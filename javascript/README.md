@@ -22,7 +22,9 @@ the [Cloud Console](https://console.cloud.google.com/flows/enableapi?apiid=genom
 
     When creating the API key, be sure to set the **Accept requests from these HTTP referrers** to `localhost:8000`.
 
-    When creating the client ID, be sure to set the **Authorized redirect URI** to `http://localhost:8000`.
+    When creating the client ID, be sure to:
+      * select **Web application** for the **Application type**
+      * set the **Authorized JavaScript origins** to `http://localhost:8000`.
 
 4. Update the Javascript in the index.html page with your API key and client ID:
 
