@@ -149,7 +149,7 @@ sub get_access_token {
 sub call_api {
   my($token, $method, $path, %body) = @_;
 
-  my $base_url = "https://www.googleapis.com/genomics/v1beta2/";
+  my $base_url = "https://genomics.googleapis.com/v1/";
   my $json_header = HTTP::Headers->new(Content_Type => "application/json");
 
   my $response = $token->request($method, $base_url . $path,
